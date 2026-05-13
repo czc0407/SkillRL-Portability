@@ -1,0 +1,17 @@
+diff --git a/agent_system/environments/env_package/alfworld/envs.py b/agent_system/environments/env_package/alfworld/envs.py
+index e72f621..e1c950d 100755
+--- a/agent_system/environments/env_package/alfworld/envs.py
++++ b/agent_system/environments/env_package/alfworld/envs.py
+@@ -19,7 +19,11 @@ import gymnasium as gym
+ from gymnasium import spaces
+ import numpy as np
+ import torch
+-import torchvision.transforms as T
++# import torchvision.transforms as T
++try:
++    import torchvision.transforms as T
++except ImportError:
++    T = None
+ import ray
+ 
+ from agent_system.environments.env_package.alfworld.alfworld.agents.environment import get_environment
