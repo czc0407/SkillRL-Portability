@@ -19,7 +19,7 @@
 
 ```bash
 # 基本运行
-python portability_exp_v6.py \
+python portability_exp.py \
   --provider openkey \
   --model qwen3-8b \
   --condition_name test_run \
@@ -27,7 +27,7 @@ python portability_exp_v6.py \
   --max_steps 20
 
 # 启用技能注入
-python portability_exp_v6.py \
+python portability_exp.py \
   --provider openkey \
   --model qwen3-8b \
   --condition_name test_with_skills \
@@ -36,22 +36,24 @@ python portability_exp_v6.py \
 ```
 
 #### 参数说明
-- --provider: API 提供商 (openkey, poxie)
-- --model: 模型名称
-- --use_skills: 启用技能注入
-- --env_num: 并行环境数
-- --max_steps: 最大步数
+- `--provider`: API 提供商 (openkey, poxie)
+- `--model`: 模型名称
+- `--use_skills`: 启用技能注入
+- `--env_num`: 并行环境数 (默认 134)
+- `--max_steps`: 每个 episode 最大步数 (默认 50)
+- `--test_times`: 重复试验次数 (默认 3)
+- `--save_trajectories`: 保存完整轨迹用于负迁移分析
+- `--summarize_only`: 仅汇总已有结果，不运行实验
 
 ### 文件结构
 ```
 .
-├── portability_exp_v6.py      # 最新实验脚本
-├── portability_exp_v5.py      # 稳定版本
-├── legacy/                    # 旧版本归档
-├── patches/                   # 依赖修改补丁
-├── agent_system/              # 环境系统依赖
-├── memory_data/               # 技能数据
-└── README.md                  # 本文件
+├── portability_exp.py          # 主实验脚本
+├── legacy/                     # 旧版本及修复前备份
+├── patches/                    # 依赖修改补丁
+├── agent_system/               # 环境系统依赖（forked SkillRL）
+├── memory_data/                # 技能数据 (claude_style_skills.json)
+└── README.md                   # 本文件
 ```
 ### 依赖修改
 ```bash

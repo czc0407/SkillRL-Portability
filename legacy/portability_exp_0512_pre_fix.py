@@ -79,7 +79,7 @@ class Agent:
     """
     
     def __init__(self, model_name: str, provider: str = "openai",
-                 temperature: float = 0.0):
+                 temperature: float = 0.4): # 和原文保持一致
         """初始化Agent。
         
         Args:
