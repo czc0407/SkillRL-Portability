@@ -467,7 +467,8 @@ def run(args) -> dict:
                     # 匹配 ALFWORLD_TEMPLATE_WITH_MEMORY 的位置
                     skill_block = (
                         f"\n## Retrieved Relevant Experience\n\n"
-                        f"{env_skill_texts[i]}\n"
+                        f"{env_skill_texts[i]}\n\n"
+                        f"## Current Progress\n"
                     )
                     marker = "\nPrior to this step, you have already taken"
                     if marker in raw_obs:
