@@ -6,11 +6,14 @@ SkillRL Portability Experiment - API版本 (v2: post-diagnosis)
 
 v2 修复（2026-06-10）：
   - Skill 检索改用 state-keyword 优先策略（照搬原文 _detect_task_type）
-  - 加入 common_mistakes 注入
+  - General skills 用 top_k=6（匹配原文 SkillsOnlyMemory 配置）
+  - General skills 不显示 when_to_apply（匹配原文 format_for_prompt）
+  - 加入 common_mistakes 注入（最多 5 条）
   - Skill 格式对齐原文（bullet list 风格）
-  - Skill 仅在 step 0 注入，非每步注入
+  - Skill 注入时机对齐原文：step 0 不注入，step 1+ 注入
+  - Skill 注入位置对齐原文：在 "Prior to this step" 之前
   - temperature 默认 0.0（确定性）
-  - test_times 默认 3（含 error bar）
+  - test_times 默认 1
   - summarize() 自动检测条件对比（去除硬编码）
 
 实验条件：
@@ -275,23 +278,25 @@ class SkillBank:
         """
         task_type = self._detect_task_type(task_desc)
         task_skills = self.task_specific.get(task_type, [])
-        general_skills = self.general
+        # 原文用 top_k=6，优先保留动态 skill（dyn_NNN），静态 skill 截断
+        all_general = self.general
+        dynamic_skills = [s for s in all_general if s.get("skill_id", "").startswith("dyn_")]
+        static_skills = [s for s in all_general if not s.get("skill_id", "").startswith("dyn_")]
+        n_static = max(0, 6 - len(dynamic_skills))
+        general_skills = dynamic_skills + static_skills[:n_static]
 
         if not general_skills and not task_skills:
             return ""
 
         sections = []
 
-        # ---- General Principles (原文格式: - **title**: principle) ----
+        # ---- General Principles（原文不显示 when_to_apply）----
         if general_skills:
             lines = ["### General Principles"]
             for s in general_skills:
                 title = s.get("title", "")
                 principle = s.get("principle", "")
-                when = s.get("when_to_apply", "")
                 lines.append(f"- **{title}**: {principle}")
-                if when:
-                    lines.append(f"  _Apply when: {when}_")
             sections.append("\n".join(lines))
 
         # ---- Task-Specific Skills ----
@@ -445,9 +450,9 @@ def run(args) -> dict:
                          f"sr={success.mean():.3f}")
 
             # 构建每个环境的obs文本
-            # Skill 条件：每步都注入 skill（匹配原文 ALFWORLD_TEMPLATE_WITH_MEMORY）
-            #   step 0：直接用 ALFWORLD_TEMPLATE_WITH_MEMORY 结构构建
-            #   step 1+：在 ALFWORLD_TEMPLATE 中 history 之前插入 skill 块
+            # Skill 条件：step 1+ 注入 skill（匹配原文：init=True→NO_HIS，
+            #   init=False且retrieval→WITH_MEMORY）。
+            # Step 0 不注入（原文 init=True 时用 ALFWORLD_TEMPLATE_NO_HIS）。
             # 无 skill 条件：直接用 env_manager 格式化好的 obs["text"]
             obs_texts = []
             injected_skills = [""] * args.env_num
@@ -457,45 +462,19 @@ def run(args) -> dict:
                     obs_texts.append(None); continue
                 raw_obs = obs["text"][i]
                 raw_obs_texts[i] = raw_obs
-                if env_skill_texts[i]:
-                    if step == 0:
-                        # 构建匹配 ALFWORLD_TEMPLATE_WITH_MEMORY 的 prompt
-                        task = env_manager.tasks[i]
-                        anchor = obs["anchor"][i]
-                        cmds = env_manager.envs.get_admissible_commands[i]
-                        cmds_str = "\n ".join(
-                            f"'{s}'" for s in cmds if s != 'help')
-                        obs_text = (
-                            f"You are an expert agent operating in the ALFRED"
-                            f" Embodied Environment. Your task is to: {task}\n\n"
-                            f"## Retrieved Relevant Experience\n\n"
-                            f"{env_skill_texts[i]}\n\n"
-                            f"## Current Progress\n\n"
-                            f"You are now at step 1 and your current observation"
-                            f" is: {anchor}\n"
-                            f"Your admissible actions of the current situation"
-                            f" are: [{cmds_str}].\n\n"
-                            f"Now it's your turn to take an action.\n"
-                            f"You should first reason step-by-step about the"
-                            f" current situation. This reasoning process MUST be"
-                            f" enclosed within <think> </think> tags.\n"
-                            f"Once you've finished your reasoning, you should"
-                            f" choose an admissible action for current step and"
-                            f" present it within <action> </action> tags."
-                        )
+                if env_skill_texts[i] and step > 0:
+                    # step 1+：在 "Prior to this step" 之前插入 skill 块，
+                    # 匹配 ALFWORLD_TEMPLATE_WITH_MEMORY 的位置
+                    skill_block = (
+                        f"\n## Retrieved Relevant Experience\n\n"
+                        f"{env_skill_texts[i]}\n"
+                    )
+                    marker = "\nPrior to this step, you have already taken"
+                    if marker in raw_obs:
+                        obs_text = raw_obs.replace(
+                            marker, f"{skill_block}{marker}", 1)
                     else:
-                        # step 1+：在 "Prior to this step" 之前插入 skill，
-                        # 匹配 ALFWORLD_TEMPLATE_WITH_MEMORY 的位置
-                        skill_block = (
-                            f"\n## Retrieved Relevant Experience\n\n"
-                            f"{env_skill_texts[i]}\n"
-                        )
-                        marker = "\nPrior to this step, you have already taken"
-                        if marker in raw_obs:
-                            obs_text = raw_obs.replace(
-                                marker, f"{skill_block}{marker}", 1)
-                        else:
-                            obs_text = raw_obs  # fallback
+                        obs_text = raw_obs  # fallback
                     injected_skills[i] = env_skill_texts[i]
                 else:
                     obs_text = raw_obs
